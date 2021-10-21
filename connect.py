@@ -1,7 +1,7 @@
 import socket
 import sys
 import time
-
+import ssl
 import select
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QVBoxLayout, QGridLayout, QWidget, QLabel, QPushButton, \
     QLineEdit, QTextEdit, QRadioButton, QDialog, QInputDialog, QMessageBox
@@ -30,6 +30,8 @@ class Client(QWidget):
         self.connectedClients = []
         self.menuWindow = MenuWindow()
         self.fullName = ''
+
+        self.context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
         self.pairChatsCounter = 0
         self.groupChatsCounter = 0
@@ -103,6 +105,8 @@ class Client(QWidget):
         # Connect to server at port
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock = self.context.wrap_socket(
+                self.sock, server_hostname=port)
             self.sock.connect((SERVER_HOST, int(port)))
             print(f'Now connected to chat server@ port {port}')
             self.menuWindow.addSocket(self.sock)

@@ -4,6 +4,7 @@ import socket
 import sys
 import signal
 import argparse
+import ssl
 
 from utils import *
 
@@ -17,10 +18,18 @@ class ChatServer(object):
         self.clients = 0
         self.clientmap = {}
         self.outputs = []  # list output sockets
+
+        self.context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        self.context.load_cert_chain(certfile="cert.pem", keyfile="cert.pem")
+        self.context.load_verify_locations('cert.pem')
+        self.context.set_ciphers('AES128-SHA')
+
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.bind((SERVER_HOST, port))
         self.server.listen(backlog)
+        self.server = self.context.wrap_socket(self.server, server_side=True)
+
         # Catch keyboard interrupts
         signal.signal(signal.SIGINT, self.sighandler)
 
