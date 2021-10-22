@@ -18,6 +18,7 @@ class ChatServer(object):
         self.clients = 0
         self.clientmap = {}
         self.outputs = []  # list output sockets
+        self.rooms = []
 
         self.context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         self.context.load_cert_chain(certfile="cert.pem", keyfile="cert.pem")
@@ -106,6 +107,13 @@ class ChatServer(object):
                     #send(client, f'\nServer> Sending a list of clients to [{self.get_client_name(client)}]')
                     send(client, msg)
 
+                    roomMessage = ''
+
+                    for room in self.rooms:
+                        roomMessage += f'{room}|'
+
+                    send(client, roomMessage)
+
                 else:
                     # handle all other sockets
                     try:
@@ -125,6 +133,7 @@ class ChatServer(object):
 
                             elif dataSplit[0] == 'Create':
                                 print('Notifying clients of new room')
+                                self.rooms.append(dataSplit[1])
 
                                 for output in self.outputs:
                                     send(output, data)
@@ -171,7 +180,7 @@ class ChatServer(object):
                             self.outputs.remove(sock)
 
                             # Sending client leaving information to others
-                            msg = f'\n(Now hung up: Client from {self.get_client_name(sock)})'
+                            msg = f'Disconnected:{self.get_client_name(sock)}'
 
                             for output in self.outputs:
                                 send(output, msg)

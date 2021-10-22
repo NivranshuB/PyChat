@@ -1,8 +1,10 @@
+import os
 import socket
 import sys
 import time
 import ssl
 import select
+from PyQt5 import QtCore
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QVBoxLayout, QGridLayout, QWidget, QLabel, QPushButton, \
     QLineEdit, QTextEdit, QRadioButton, QDialog, QInputDialog, QMessageBox
 from PyQt5.QtCore import QCoreApplication, QTimer, QThread, pyqtSignal
@@ -93,6 +95,24 @@ class Client(QWidget):
         self.resize(500, 400)
         self.show()
 
+    def closeEverything(self):
+        for chat in self.pairChats:
+            chat.close()
+
+        for chat in self.groupChats:
+            chat.close()
+
+        global stop_thread
+
+        stop_thread = True
+
+        self.menuWindow.close()
+        self.pauseTimer()
+        self.sock.close()
+        self.close()
+        app.quit()
+        os._exit(0)
+
     def connectPressed(self):
         ipaddress = self.ipaddress.text()
         port = self.port.text()
@@ -147,6 +167,17 @@ class Client(QWidget):
                     self.connectedClients.append(name)
                     self.menuWindow.addMember(name)
 
+            roomdata = receive(self.sock)
+
+            print('Existing rooms are: ' + roomdata)
+
+            roomNames = roomdata.split("|")
+
+            for name in roomNames:
+                print('Room name: ' + name)
+                if name not in self.groupChatMap and name != '':
+                    self.menuWindow.add_new_room(name)
+
             self.startTimer()
 
 
@@ -155,7 +186,6 @@ class Client(QWidget):
             sys.exit(1)
 
     def receive_data(self):
-        #print('Another 1sec bites the dust')
 
         try:
             # Wait for input from stdin and socket
@@ -215,6 +245,8 @@ class Client(QWidget):
                         elif splitMessage[0] == 'Invite':
                             self.menuWindow.inviteConfirmBox(data)
 
+                        elif splitMessage[0] == 'Disconnected':
+                            print('Disconnecting client - ' + splitMessage[1])
 
                         sys.stdout.write('Data received was: ' + data + '\n')
                         sys.stdout.flush()
@@ -335,16 +367,10 @@ class MenuWindow(QWidget):
 
         roomDetails.addLayout(roomButtons)
 
-        closeOption = QHBoxLayout()
-        closeButton = QPushButton('Close')
-        closeButton.clicked.connect(QCoreApplication.instance().quit)
-        closeOption.addWidget(closeButton)
-
         menu = QVBoxLayout()
         menu.addLayout(clientDetails)
         menu.addLayout(roomTitle)
         menu.addLayout(roomDetails)
-        menu.addLayout(closeOption)
 
         self.setLayout(menu)
 
@@ -361,8 +387,9 @@ class MenuWindow(QWidget):
         title = "New room"
         message = "Select the name of new Chat room"
         room_name, ok = QInputDialog.getText(parent_window, title, message, QLineEdit.Normal, default_value)
-        print('New room name is ' + room_name)
-        self.create_new_room(room_name)
+        if room_name != "":
+            print('New room name is ' + room_name)
+            self.create_new_room(room_name)
 
     def create_new_room(self, text):
         newRoomName = text
@@ -469,6 +496,8 @@ class MenuWindow(QWidget):
                 groupChat.show()
                 self.client.sendJoinMessage(groupChatSelected + ':' + self.name)
 
+    def closeEvent(self, event):
+        self.client.closeEverything()
 
 class PairChatWindow(QDialog):
 
@@ -492,14 +521,10 @@ class PairChatWindow(QDialog):
         sendButton.clicked.connect(self.sendButtonPressed)
         messageArea.addWidget(sendButton)
 
-        closeButton = QPushButton('Close')
-        closeButton.clicked.connect(QCoreApplication.instance().quit)
-
         overallVbox = QVBoxLayout()
         overallVbox.addLayout(chatTitle)
         overallVbox.addWidget(self.chatBox)
         overallVbox.addLayout(messageArea)
-        overallVbox.addWidget(closeButton)
 
         self.setLayout(overallVbox)
         self.setWindowTitle('1:1 Chat')
@@ -508,6 +533,7 @@ class PairChatWindow(QDialog):
 
     def setName(self, text):
         self.name = text
+        self.setWindowTitle('[' + self.client.nickname.text() + '] ' + '1:1 chat')
         self.titleLabel.setText('Chat with ' + text)
 
     def addMessage(self, text):
@@ -533,7 +559,8 @@ class GroupChatWindow(QDialog):
     def initUI(self):
 
         headers = QHBoxLayout()
-        headers.addWidget(QLabel('Room 1 by ...'))
+        self.roomtitle = QLabel('Room 1 by ...')
+        headers.addWidget(self.roomtitle)
         headers.addWidget(QLabel('Members'))
 
         content = QHBoxLayout()
@@ -558,10 +585,6 @@ class GroupChatWindow(QDialog):
 
         footers = QHBoxLayout()
 
-        closeButton = QPushButton('Close')
-        closeButton.clicked.connect(QCoreApplication.instance().quit)
-
-        footers.addWidget(closeButton)
         inviteButton = QPushButton('Invite')
         inviteButton.clicked.connect(self.invite_button_pressed)
         footers.addWidget(inviteButton)
@@ -577,7 +600,8 @@ class GroupChatWindow(QDialog):
 
     def setName(self, text):
         self.name = text
-        self.setWindowTitle(text + " (Group Chat)")
+        self.roomtitle.setText(text)
+        self.setWindowTitle('[' + self.client.nickname.text() + '] ' + text + " (Group Chat)")
 
     def setClient(self, client):
         self.client = client
