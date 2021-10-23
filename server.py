@@ -1,3 +1,4 @@
+import os
 
 import select
 import socket
@@ -45,6 +46,8 @@ class ChatServer(object):
             output.close()
 
         self.server.close()
+        self.server.shutdown(socket.SHUT_RDWR);
+        os._exit(0)
 
     def get_client_name(self, client):
         """ Return the name of the client """
@@ -74,8 +77,6 @@ class ChatServer(object):
                     # Read the login name
                     cname = receive(client).split('NAME: ')[1]
 
-                    print('Client name is: ' + cname)
-
                     # Compute client name and send back
                     self.clients += 1
                     inputs.append(client)
@@ -91,12 +92,8 @@ class ChatServer(object):
                     for output in self.outputs:
                         send(output, msg)
 
-                    print(f'Sending a list of clients to {self.get_client_name(client)}')
-
                     # Send as new client's message...
                     msg = ''
-
-                    print('Number of clients are ' + str(len(self.outputs)))
 
                     for output in self.outputs:
                         msg += f'{self.get_client_name(output)}|'
@@ -122,17 +119,12 @@ class ChatServer(object):
                             dataSplit = data.split(':')
 
                             if dataSplit[0] == 'Single':
-                                print('In the process of forwarding message')
                                 for output in self.outputs:
                                     if self.get_client_name(output) == dataSplit[1]:
                                         senderName = self.get_client_name(sock)
-                                        print('\nForwarding the message: ' + dataSplit[2])
-                                        print('\nFrom: ' + senderName)
-                                        print('\nTo: ' + self.get_client_name(output))
                                         send(output, 'Single:' + senderName + ":" + dataSplit[2])
 
                             elif dataSplit[0] == 'Create':
-                                print('Notifying clients of new room')
                                 self.rooms.append(dataSplit[1])
 
                                 for output in self.outputs:
@@ -140,28 +132,21 @@ class ChatServer(object):
 
                             elif dataSplit[0] == 'Join':
                                 username = self.get_client_name(sock)
-                                print('User ' + username + ' joining the group ' + dataSplit[1])
 
                                 for output in self.outputs:
                                     message = 'Join:' + username + ':' + dataSplit[1]
                                     send(output, message)
 
                             elif dataSplit[0] == 'Group':
-                                print('In the process of forwarding message to group chat')
                                 for output in self.outputs:
                                     senderName = self.get_client_name(sock)
                                     if self.get_client_name(output) != senderName:
-                                        print('\nForwarding the message: ' + dataSplit[3])
-                                        print('\nFrom: ' + senderName)
-                                        print('\nTo: ' + self.get_client_name(output))
                                         send(output, 'Group:' + dataSplit[1] + ":" + senderName + ":" + dataSplit[3])
 
                             elif dataSplit[0] == 'Invite':
                                 senderName = self.get_client_name(sock)
-                                print('In the process of sending invite message to ' + dataSplit[3] + ' from ' + senderName)
                                 for output in self.outputs:
                                     if self.get_client_name(output) == dataSplit[3]:
-                                        print('Forwarding invite message to ' + dataSplit[3])
                                         send(output, 'Invite:' + dataSplit[1] + ':' + senderName)
 
                             else:
@@ -173,7 +158,6 @@ class ChatServer(object):
                                     if output != sock:
                                         send(output, msg)
                         else:
-                            print(f'Chat server: {sock.fileno()} hung up')
                             self.clients -= 1
                             sock.close()
                             inputs.remove(sock)
